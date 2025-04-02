@@ -72,12 +72,8 @@ class AutomataGUI:
         buttonGroup = Frame(parentFrame)
         self.timingLabel = Label(buttonGroup, text="Idle...", width=50, justify=LEFT)
         nfaButton = Button(buttonGroup, text="NFA", width=15, command=self.handlenfaButton)
-        dfaButton = Button(buttonGroup, text="DFA", width=15, command=self.handledfaButton)
-        minDFAButton = Button(buttonGroup, text="Minimized DFA", width=15, command=self.handleminDFAButton)
         self.timingLabel.grid(row=0, column=0, sticky=W)
         nfaButton.grid(row=0, column=1)
-        dfaButton.grid(row=0, column=2)
-        minDFAButton.grid(row=0, column=3)
 
         automataCanvasFrame = Frame(parentFrame, height=100, width=100)
         self.cwidth = int(self.FrameSizeX - (2*padX + 20))
@@ -120,7 +116,6 @@ class AutomataGUI:
         inp = self.testVar.get().replace(' ','')
         if inp == '':
             inp = [':e:']
-        if self.dfaObj.acceptsString(inp):
             self.statusLabel.config(text="Accepts :)")
         else:
             self.statusLabel.config(text="Does not accept :|")
@@ -130,11 +125,9 @@ class AutomataGUI:
         self.selectedButton = 0
         self.displayAutomata()
 
-    def handledfaButton(self):
         self.selectedButton = 1
         self.displayAutomata()
 
-    def handleminDFAButton(self):
         self.selectedButton = 2
         self.displayAutomata()
 
@@ -142,22 +135,11 @@ class AutomataGUI:
         print("Regex: ", inp)
         nfaObj = NFAfromRegex(inp)
         self.nfa = nfaObj.getNFA()
-        self.dfaObj = DFAfromNFA(self.nfa)
-        self.dfa = self.dfaObj.getDFA()
-        self.minDFA = self.dfaObj.getMinimisedDFA()
         if self.dotFound:
-            drawGraph(self.dfa, "dfa")
             drawGraph(self.nfa, "nfa")
-            drawGraph(self.minDFA, "mdfa")
-            dfafile = "graphdfa.png"
             nfafile = "graphnfa.png"
-            mindfafile = "graphmdfa.png"
             self.nfaimagefile = Image.open(nfafile)
-            self.dfaimagefile = Image.open(dfafile)
-            self.mindfaimagefile = Image.open(mindfafile)
             self.nfaimg = ImageTk.PhotoImage(self.nfaimagefile)
-            self.dfaimg = ImageTk.PhotoImage(self.dfaimagefile)
-            self.mindfaimg = ImageTk.PhotoImage(self.mindfaimagefile)
 
     def displayAutomata(self):
         for item in self.canvasitems:
@@ -168,18 +150,6 @@ class AutomataGUI:
             if self.dotFound:
                 image = self.nfaimg
                 imagefile = self.nfaimagefile
-        elif self.selectedButton == 1:
-            header = "DFA"
-            automata = self.dfa
-            if self.dotFound:
-                image = self.dfaimg
-                imagefile = self.dfaimagefile
-        elif self.selectedButton == 2:
-            header = "Minimised DFA"
-            automata = self.minDFA
-            if self.dotFound:
-                image = self.mindfaimg
-                imagefile = self.mindfaimagefile
         font = tkFont.Font(family="times", size=20)
         (w,h) = (font.measure(header),font.metrics("linespace"))
         headerheight = h + 10
