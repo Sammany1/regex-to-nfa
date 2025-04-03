@@ -2,24 +2,44 @@ from os import popen
 import time
 
 class Automata:
-    """class to represent an Automata"""
+    """Class representing a Non-deterministic Finite Automaton (NFA)
+    
+    This class implements the core data structure and operations for NFAs,
+    including state management, transitions, and visualization capabilities.
+    """
 
     def __init__(self, language = set(['0', '1'])):
-        self.states = set()
-        self.startstate = None
-        self.finalstates = []
-        self.transitions = dict()
-        self.language = language
+        """Initialize an empty automaton with the specified language
+        
+        Args:
+            language: Set of symbols in the automaton's alphabet (default: {0,1})
+        """
+        self.states = set()           # Set of all states in the automaton
+        self.startstate = None        # The starting state
+        self.finalstates = []         # List of accepting/final states
+        self.transitions = dict()     # Dictionary mapping: from_state -> {to_state -> symbols}
+        self.language = language      # The alphabet of the automaton
 
     @staticmethod
     def epsilon():
+        """Return the symbol representing epsilon (empty string) transitions"""
         return ":e:"
 
     def setstartstate(self, state):
+        """Set the start state of the automaton and add it to states set
+        
+        Args:
+            state: The state to set as the start state
+        """
         self.startstate = state
         self.states.add(state)
 
     def addfinalstates(self, state):
+        """Add one or more states to the set of final (accepting) states
+        
+        Args:
+            state: A single state or list of states to add as final states
+        """
         if isinstance(state, int):
             state = [state]
         for s in state:
@@ -27,6 +47,13 @@ class Automata:
                 self.finalstates.append(s)
 
     def addtransition(self, fromstate, tostate, inp):
+        """Add a transition between states on the specified input symbol(s)
+        
+        Args:
+            fromstate: Source state
+            tostate: Destination state
+            inp: Input symbol or set of input symbols for this transition
+        """
         if isinstance(inp, str):
             inp = set([inp])
         self.states.add(fromstate)
@@ -40,11 +67,25 @@ class Automata:
             self.transitions[fromstate] = {tostate : inp}
 
     def addtransition_dict(self, transitions):
+        """Add multiple transitions from a dictionary structure
+        
+        Args:
+            transitions: Dictionary of transitions to add to the automaton
+        """
         for fromstate, tostates in transitions.items():
             for state in tostates:
                 self.addtransition(fromstate, state, tostates[state])
 
     def gettransitions(self, state, key):
+        """Get all states reachable from the given state(s) on the specified input
+        
+        Args:
+            state: A state or list of states
+            key: Input symbol to check transitions for
+            
+        Returns:
+            Set of states reachable from the given state(s) on the input
+        """
         if isinstance(state, int):
             state = [state]
         trstates = set()
@@ -56,8 +97,17 @@ class Automata:
         return trstates
 
     def getEClose(self, findstate):
+        """Find the epsilon-closure of a state (all states reachable via epsilon transitions)
+        
+        Args:
+            findstate: The state to find epsilon-closure for
+            
+        Returns:
+            Set of states reachable from the given state via epsilon transitions
+        """
         allstates = set()
         states = set([findstate])
+        # Breadth-first search for all states reachable via epsilon
         while len(states)!= 0:
             state = states.pop()
             allstates.add(state)
@@ -68,6 +118,7 @@ class Automata:
         return allstates
 
     def display(self):
+        """Print the automaton details to standard output"""
         print("states:", self.states)
         print("start state: ", self.startstate)
         print("final states:", self.finalstates)
@@ -79,6 +130,11 @@ class Automata:
             print()
 
     def getPrintText(self):
+        """Get a formatted text representation and line count for GUI display
+        
+        Returns:
+            tuple: [formatted_text, line_count]
+        """
         text = "language: {" + ", ".join(self.language) + "}\n"
         text += "states: {" + ", ".join(map(str,self.states)) + "}\n"
         text += "start state: " + str(self.startstate) + "\n"
@@ -93,6 +149,14 @@ class Automata:
         return [text, linecount]
 
     def newBuildFromNumber(self, startnum):
+        """Create a new automaton with renumbered states starting from startnum
+        
+        Args:
+            startnum: The starting state number for the new automaton
+            
+        Returns:
+            tuple: [new_automaton, next_available_state_number]
+        """
         translations = {}
         for i in list(self.states):
             translations[i] = startnum
@@ -106,6 +170,15 @@ class Automata:
         return [rebuild, startnum]
 
     def newBuildFromEquivalentStates(self, equivalent, pos):
+        """Create a new automaton from equivalent states mapping
+        
+        Args:
+            equivalent: List of equivalent states
+            pos: Dictionary mapping original states to new positions
+            
+        Returns:
+            New automaton with equivalent states combined
+        """
         rebuild = Automata(self.language)
         for fromstate, tostates in self.transitions.items():
             for state in tostates:
@@ -116,6 +189,11 @@ class Automata:
         return rebuild
 
     def getDotFile(self):
+        """Generate a DOT file representation for GraphViz visualization
+        
+        Returns:
+            String containing DOT format representation of the automaton
+        """
         dotFile = "digraph DFA {\nrankdir=LR\n"
         if len(self.states) != 0:
             dotFile += "root=s1\nstart [shape=point]\nstart->s%d\n" % self.startstate
@@ -132,10 +210,25 @@ class Automata:
         return dotFile
 
 class BuildAutomata:
-    """class for building e-nfa basic structures"""
+    """Class for building elementary NFA structures using Thompson's Construction
+    
+    This class provides static methods to create basic NFA components
+    and combine them into more complex structures according to
+    Thompson's construction algorithm for converting regex to NFA.
+    """
 
     @staticmethod
     def basicstruct(inp):
+        """Create a basic NFA that accepts a single character
+        
+        Structure: state1 --(inp)--> state2
+        
+        Args:
+            inp: The input symbol this NFA should accept
+            
+        Returns:
+            Automata: A simple two-state NFA that accepts only the input symbol
+        """
         state1 = 1
         state2 = 2
         basic = Automata()
@@ -145,7 +238,26 @@ class BuildAutomata:
         return basic
 
     @staticmethod
-    def plusstruct(a, b):
+    def ORstruct(a, b):
+        """Combine two NFAs with an OR operation (union)
+        
+        Creates an NFA that accepts either pattern a OR pattern b
+        
+        Structure:
+                  ε     
+            ---> a ---->
+           /           \
+        1 -             -> 4
+           \           /
+            ---> b ---->
+                  ε
+        
+        Args:
+            a, b: The two automata to combine with OR
+            
+        Returns:
+            Automata: Combined NFA accepting either a or b
+        """
         [a, m1] = a.newBuildFromNumber(2)
         [b, m2] = b.newBuildFromNumber(m1)
         state1 = 1
@@ -162,7 +274,20 @@ class BuildAutomata:
         return plus
 
     @staticmethod
-    def dotstruct(a, b):
+    def DOTstruct(a, b):
+        """Combine two NFAs with concatenation (DOT operation)
+        
+        Creates an NFA that accepts pattern a followed by pattern b
+        
+        Structure:
+        1 ---> a --ε--> b ---> last
+        
+        Args:
+            a, b: The two automata to concatenate
+            
+        Returns:
+            Automata: Combined NFA accepting a followed by b
+        """
         [a, m1] = a.newBuildFromNumber(1)
         [b, m2] = b.newBuildFromNumber(m1)
         state1 = 1
@@ -177,6 +302,24 @@ class BuildAutomata:
 
     @staticmethod
     def starstruct(a):
+        """Apply the Kleene star operation to an NFA
+        
+        Creates an NFA that accepts zero or more repetitions of pattern a
+        
+        Structure:
+                 ε
+                 ┌─────┐
+                 ▼     │
+        1 --ε--> a --ε--+--ε--> 4
+        │                       ▲
+        └───────────ε───────────┘
+        
+        Args:
+            a: The automaton to apply the star operation to
+            
+        Returns:
+            Automata: NFA accepting zero or more repetitions of a
+        """
         [a, m1] = a.newBuildFromNumber(2)
         state1 = 1
         state2 = m1
@@ -212,12 +355,12 @@ class NFAfromRegex:
     def displayNFA(self):
         self.nfa.display()
 
-    def buildNFA(self):
+    def buildNFA(self): 
         language = set()
         self.stack = []
         self.automata = []
         previous = "::e::"
-        for char in self.regex:
+        for char in self.regex: # loop throw charchters
             if char in self.alphabet:
                 language.add(char)
                 if previous != self.dot and (previous in self.alphabet or previous in [self.closingBracket,self.star]):
