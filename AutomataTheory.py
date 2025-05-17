@@ -1,5 +1,6 @@
+# AutomataTheory.py
 from os import popen
-import time
+import shutil
 
 class Automata:
     """class to represent an Automata"""
@@ -131,6 +132,7 @@ class Automata:
         dotFile += "}"
         return dotFile
 
+
 class BuildAutomata:
     """class for building e-nfa basic structures"""
 
@@ -190,153 +192,21 @@ class BuildAutomata:
         star.addtransition_dict(a.transitions)
         return star
 
+    @staticmethod
+    def plusstarstruct(a):
+        # Implements A+ = A.A*
+        return BuildAutomata.dotstruct(a, BuildAutomata.starstruct(a))
 
-class DFAfromNFA:
-    """class for building dfa from e-nfa and minimise it"""
-
-    def __init__(self, nfa):
-        self.buildDFA(nfa)
-        self.minimise()
-
-    def getDFA(self):
-        return self.dfa
-
-    def getMinimisedDFA(self):
-        return self.minDFA
-
-    def displayDFA(self):
-        self.dfa.display()
-
-    def displayMinimisedDFA(self):
-        self.minDFA.display()
-
-    def buildDFA(self, nfa):
-        allstates = dict()
-        eclose = dict()
-        count = 1
-        state1 = nfa.getEClose(nfa.startstate)
-        eclose[nfa.startstate] = state1
-        dfa = Automata(nfa.language)
-        dfa.setstartstate(count)
-        states = [[state1, count]]
-        allstates[count] = state1
-        count +=  1
-        while len(states) != 0:
-            [state, fromindex] = states.pop()
-            for char in dfa.language:
-                trstates = nfa.gettransitions(state, char)
-                for s in list(trstates)[:]:
-                    if s not in eclose:
-                        eclose[s] = nfa.getEClose(s)
-                    trstates = trstates.union(eclose[s])
-                if len(trstates) != 0:
-                    if trstates not in allstates.values():
-                        states.append([trstates, count])
-                        allstates[count] = trstates
-                        toindex = count
-                        count +=  1
-                    else:
-                        toindex = [k for k, v in allstates.items() if v  ==  trstates][0]
-                    dfa.addtransition(fromindex, toindex, char)
-        for value, state in allstates.items():
-            if nfa.finalstates[0] in state:
-                dfa.addfinalstates(value)
-        self.dfa = dfa
-
-    def acceptsString(self, string):
-        currentstate = self.dfa.startstate
-        for ch in string:
-            if ch==":e:":
-                continue
-            st = list(self.dfa.gettransitions(currentstate, ch))
-            if len(st) == 0:
-                return False
-            currentstate = st[0]
-        if currentstate in self.dfa.finalstates:
-            return True
-        return False
-
-    def minimise(self):
-        states = list(self.dfa.states)
-        n = len(states)
-        unchecked = dict()
-        count = 1
-        distinguished = []
-        equivalent = dict(zip(range(len(states)), [{s} for s in states]))
-        pos = dict(zip(states,range(len(states))))
-        for i in range(n-1):
-            for j in range(i+1, n):
-                if not ([states[i], states[j]] in distinguished or [states[j], states[i]] in distinguished):
-                    eq = 1
-                    toappend = []
-                    for char in self.dfa.language:
-                        s1 = self.dfa.gettransitions(states[i], char)
-                        s2 = self.dfa.gettransitions(states[j], char)
-                        if len(s1) != len(s2):
-                            eq = 0
-                            break
-                        if len(s1) > 1:
-                            raise BaseException("Multiple transitions detected in DFA")
-                        elif len(s1) == 0:
-                            continue
-                        s1 = s1.pop()
-                        s2 = s2.pop()
-                        if s1 != s2:
-                            if [s1, s2] in distinguished or [s2, s1] in distinguished:
-                                eq = 0
-                                break
-                            else:
-                                toappend.append([s1, s2, char])
-                                eq = -1
-                    if eq == 0:
-                        distinguished.append([states[i], states[j]])
-                    elif eq == -1:
-                        s = [states[i], states[j]]
-                        s.extend(toappend)
-                        unchecked[count] = s
-                        count += 1
-                    else:
-                        p1 = pos[states[i]]
-                        p2 = pos[states[j]]
-                        if p1 != p2:
-                            st = equivalent.pop(p2)
-                            for s in st:
-                                pos[s] = p1
-                            equivalent[p1] = equivalent[p1].union(st)
-        newFound = True
-        while newFound and len(unchecked) > 0:
-            newFound = False
-            toremove = set()
-            for p, pair in unchecked.items():
-                for tr in pair[2:]:
-                    if [tr[0], tr[1]] in distinguished or [tr[1], tr[0]] in distinguished:
-                        unchecked.pop(p)
-                        distinguished.append([pair[0], pair[1]])
-                        newFound = True
-                        break
-        for pair in unchecked.values():
-            p1 = pos[pair[0]]
-            p2 = pos[pair[1]]
-            if p1 != p2:
-                st = equivalent.pop(p2)
-                for s in st:
-                    pos[s] = p1
-                equivalent[p1] = equivalent[p1].union(st)
-        if len(equivalent) == len(states):
-            self.minDFA = self.dfa
-        else:
-            self.minDFA = self.dfa.newBuildFromEquivalentStates(equivalent, pos)
 
 class NFAfromRegex:
-    """class for building e-nfa from regular expressions"""
-
     def __init__(self, regex):
         self.star = '*'
         self.plus = '+'
         self.dot = '.'
+        self.plusstar = '^'  # Kleene plus operator (A+)
         self.openingBracket = '('
         self.closingBracket = ')'
-        self.operators = [self.plus, self.dot]
+        self.operators = [self.plus, self.dot, self.plusstar]
         self.regex = regex
         self.alphabet = [chr(i) for i in range(65,91)]
         self.alphabet.extend([chr(i) for i in range(97,123)])
@@ -357,50 +227,50 @@ class NFAfromRegex:
         for char in self.regex:
             if char in self.alphabet:
                 language.add(char)
-                if previous != self.dot and (previous in self.alphabet or previous in [self.closingBracket,self.star]):
+                if previous != self.dot and (previous in self.alphabet or previous in [self.closingBracket,self.star,self.plusstar]):
                     self.addOperatorToStack(self.dot)
                 self.automata.append(BuildAutomata.basicstruct(char))
-            elif char  ==  self.openingBracket:
-                if previous != self.dot and (previous in self.alphabet or previous in [self.closingBracket,self.star]):
+            elif char == self.openingBracket:
+                if previous != self.dot and (previous in self.alphabet or previous in [self.closingBracket,self.star,self.plusstar]):
                     self.addOperatorToStack(self.dot)
                 self.stack.append(char)
-            elif char  ==  self.closingBracket:
+            elif char == self.closingBracket:
                 if previous in self.operators:
-                    raise BaseException("Error processing '%s' after '%s'" % (char, previous))
-                while(1):
+                    raise BaseException(f"Error processing '{char}' after '{previous}'")
+                while True:
                     if len(self.stack) == 0:
-                        raise BaseException("Error processing '%s'. Empty stack" % char)
+                        raise BaseException(f"Error processing '{char}'. Empty stack")
                     o = self.stack.pop()
                     if o == self.openingBracket:
                         break
                     elif o in self.operators:
                         self.processOperator(o)
             elif char == self.star:
-                if previous in self.operators or previous  == self.openingBracket or previous == self.star:
-                    raise BaseException("Error processing '%s' after '%s'" % (char, previous))
+                if previous in self.operators or previous in [self.openingBracket, self.star]:
+                    raise BaseException(f"Error processing '{char}' after '{previous}'")
+                self.processOperator(char)
+            elif char == self.plusstar:
+                if previous in self.operators or previous in [self.openingBracket, self.plusstar]:
+                    raise BaseException(f"Error processing '{char}' after '{previous}'")
                 self.processOperator(char)
             elif char in self.operators:
-                if previous in self.operators or previous  == self.openingBracket:
-                    raise BaseException("Error processing '%s' after '%s'" % (char, previous))
-                else:
-                    self.addOperatorToStack(char)
+                if previous in self.operators or previous == self.openingBracket:
+                    raise BaseException(f"Error processing '{char}' after '{previous}'")
+                self.addOperatorToStack(char)
             else:
-                raise BaseException("Symbol '%s' is not allowed" % char)
+                raise BaseException(f"Symbol '{char}' is not allowed")
             previous = char
         while len(self.stack) != 0:
             op = self.stack.pop()
             self.processOperator(op)
         if len(self.automata) > 1:
-            print(self.automata)
             raise BaseException("Regex could not be parsed successfully")
         self.nfa = self.automata.pop()
         self.nfa.language = language
 
     def addOperatorToStack(self, char):
-        while(1):
-            if len(self.stack) == 0:
-                break
-            top = self.stack[len(self.stack)-1]
+        while len(self.stack) > 0:
+            top = self.stack[-1]
             if top == self.openingBracket:
                 break
             if top == char or top == self.dot:
@@ -412,22 +282,25 @@ class NFAfromRegex:
 
     def processOperator(self, operator):
         if len(self.automata) == 0:
-            raise BaseException("Error processing operator '%s'. Stack is empty" % operator)
+            raise BaseException(f"Error processing operator '{operator}'. Stack is empty")
         if operator == self.star:
             a = self.automata.pop()
             self.automata.append(BuildAutomata.starstruct(a))
+        elif operator == self.plusstar:
+            a = self.automata.pop()
+            self.automata.append(BuildAutomata.plusstarstruct(a))
         elif operator in self.operators:
             if len(self.automata) < 2:
-                raise BaseException("Error processing operator '%s'. Inadequate operands" % operator)
+                raise BaseException(f"Error processing operator '{operator}'. Inadequate operands")
             a = self.automata.pop()
             b = self.automata.pop()
             if operator == self.plus:
-                self.automata.append(BuildAutomata.plusstruct(b,a))
+                self.automata.append(BuildAutomata.plusstruct(b, a))
             elif operator == self.dot:
-                self.automata.append(BuildAutomata.dotstruct(b,a))
+                self.automata.append(BuildAutomata.dotstruct(b, a))
+
 
 def drawGraph(automata, file = ""):
-    """From https://github.com/max99x/automata-editor/blob/master/util.py"""
     f = popen(r"dot -Tpng -o graph%s.png" % file, 'w')
     try:
         f.write(automata.getDotFile())
@@ -436,18 +309,8 @@ def drawGraph(automata, file = ""):
     finally:
         f.close()
 
+
 def isInstalled(program):
-    """From http://stackoverflow.com/questions/377017/test-if-executable-exists-in-python"""
-    import os
-    def is_exe(fpath):
-        return os.path.isfile(fpath) and os.access(fpath, os.X_OK)
-    fpath, fname = os.path.split(program)
-    if fpath:
-        if is_exe(program) or is_exe(program+".exe"):
-            return True
-    else:
-        for path in os.environ["PATH"].split(os.pathsep):
-            exe_file = os.path.join(path, program)
-            if is_exe(exe_file) or is_exe(exe_file+".exe"):
-                return True
-    return False
+    path = shutil.which(program)
+    print(f"DEBUG: dot path = {path}")
+    return path is not None
